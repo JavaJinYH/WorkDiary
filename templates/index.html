@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkDiary - 工作日志</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; }
+        
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        
+        .header { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 24px; color: #333; }
+        .header .date { color: #666; font-size: 14px; }
+        
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; background: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .tab:hover { background: #e0e0e0; }
+        .tab.active { background: #4a90d9; color: white; }
+        
+        .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .card h2 { font-size: 18px; margin-bottom: 15px; color: #333; }
+        
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 8px; color: #666; font-size: 14px; }
+        .input-group input, .input-group textarea, .input-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        .input-group textarea { min-height: 100px; resize: vertical; }
+        
+        .btn { padding: 12px 24px; background: #4a90d9; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #3a7bc8; }
+        .btn.secondary { background: #6c757d; }
+        
+        .settings-section { margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .settings-section:last-child { border-bottom: none; }
+        .settings-section h3 { font-size: 16px; margin-bottom: 15px; color: #333; }
+        .hint { font-size: 12px; color: #999; margin-top: 8px; }
+        
+        .shortcut-list { display: flex; flex-direction: column; gap: 8px; }
+        .shortcut-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f5f5f5; border-radius: 6px; }
+        .shortcut-item .key { display: inline-flex; gap: 4px; }
+        .shortcut-item .key kbd { background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-family: monospace; }
+        .shortcut-item.editing { background: #e8f4fd; }
+        
+        .search-result-highlight { background: #fff3cd; padding: 0 2px; border-radius: 2px; }
+        .btn.danger { background: #dc3545; }
+        .btn.sm { padding: 6px 12px; font-size: 12px; }
+        
+        .records-list { list-style: none; }
+        .record-item { padding: 15px; border-bottom: 1px solid #eee; }
+        .record-item:last-child { border-bottom: none; }
+        .record-item .meta { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .record-item .tag { background: #e8f4fd; color: #4a90d9; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .record-item .time { color: #999; font-size: 12px; }
+        .record-item .content { color: #333; line-height: 1.6; }
+        .record-item .actions { margin-top: 10px; }
+        
+        .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+        .calendar-day { padding: 10px; text-align: center; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .calendar-day:hover { background: #f0f0f0; }
+        .calendar-day.has-record { background: #e8f4fd; color: #4a90d9; font-weight: bold; }
+        .calendar-day.today { background: #4a90d9; color: white; }
+        .calendar-day.selected { background: #2d5a87; color: white; }
+        
+        .summary-box { background: #f8f9fa; padding: 15px; border-radius: 8px; white-space: pre-wrap; line-height: 1.8; }
+        
+        .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .tag-item { display: flex; align-items: center; gap: 5px; background: #f0f0f0; padding: 5px 10px; border-radius: 15px; font-size: 12px; }
+        .tag-item .remove { cursor: pointer; color: #999; }
+        
+        .notification { position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 15px 20px; border-radius: 8px; display: none; z-index: 1000; }
+        
+        .hidden { display: none !important; }
+        
+        .dialog-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .dialog-overlay.hidden { display: none !important; }
+        .dialog { background: white; padding: 20px; border-radius: 12px; min-width: 300px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .dialog-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .dialog-content { margin-bottom: 20px; color: #666; line-height: 1.6; }
+        .dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn.secondary { background: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 WorkDiary 工作日志</h1>
+            <div class="date" id="currentDate"></div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="today">今日记录</button>
+            <button class="tab" data-tab="calendar">日历视图</button>
+            <button class="tab" data-tab="summary">周期总结</button>
+            <button class="tab" data-tab="search">搜索</button>
+            <button class="tab" data-tab="settings">设置</button>
+        </div>
+        
+        <div id="tab-today" class="tab-content">
+            <div class="card">
+                <h2>➕ 添加记录</h2>
+                <div class="input-group">
+                    <label>工作内容</label>
+                    <textarea id="recordContent" placeholder="今天做了什么工作？"></textarea>
+                </div>
+                <div class="input-group">
+                    <label>分类标签</label>
+                    <select id="recordTag">
+                        <option value="">选择标签...</option>
+                    </select>
+                </div>
+                <button class="btn" onclick="addRecord()">保存记录</button>
+            </div>
+            
+            <div class="card">
+                <h2>📝 今日记录 (<span id="todayCount">0</span>条)</h2>
+                <ul class="records-list" id="todayRecords"></ul>
+            </div>
+        </div>
+        
+        <div id="tab-calendar" class="tab-content hidden">
+            <div class="card">
+                <h2>📅 <span id="calendarMonth"></span></h2>
+                <div style="margin-bottom: 15px;">
+                    <button class="btn sm" onclick="changeMonth(-1)">◀ 上月</button>
+                    <button class="btn sm" onclick="changeMonth(1)">下月 ▶</button>
+                </div>
+                <div class="calendar" id="calendar"></div>
+            </div>
+            <div class="card">
+                <h2>📋 <span id="selectedDate"></span> 的记录</h2>
+                <ul class="records-list" id="dateRecords"></ul>
+            </div>
+        </div>
+        
+        <div id="tab-summary" class="tab-content hidden">
+            <div class="card">
+                <h2>📊 周期总结</h2>
+                <div style="margin-bottom: 15px;">
+                    <button class="btn" onclick="showSummary('weekly')">本周</button>
+                    <button class="btn" onclick="showSummary('monthly')">本月</button>
+                    <button class="btn" onclick="showSummary('quarterly')">本季度</button>
+                    <button class="btn" onclick="showSummary('yearly')">今年</button>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <button class="btn" style="background: #28a745;" onclick="showAISummary('weekly', false)">🤖 AI本周总结</button>
+                    <button class="btn" style="background: #28a745;" onclick="showAISummary('monthly', false)">🤖 AI本月总结</button>
+                    <button class="btn" style="background: #28a745;" onclick="showAISummary('quarterly', false)">🤖 AI本季度总结</button>
+                    <button class="btn" style="background: #28a745;" onclick="showAISummary('yearly', false)">🤖 AI今年总结</button>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: #f0f0f0; border-radius: 8px;">
+                    <span style="color: #666; font-size: 13px;">📅 选择历史周期：</span>
+                    <button class="btn sm" style="background: #6c757d; margin-left: 10px;" onclick="showAISummary('weekly', true)">🤖 上周</button>
+                    <button class="btn sm" style="background: #6c757d;" onclick="showAISummary('monthly', true)">🤖 上月</button>
+                    <button class="btn sm" style="background: #6c757d;" onclick="showAISummary('quarterly', true)">🤖 上季度</button>
+                    <button class="btn sm" style="background: #6c757d;" onclick="showAISummary('yearly', true)">🤖 去年</button>
+                </div>
+                <div id="summaryContent" class="summary-box">点击上方按钮生成总结</div>
+            </div>
+        </div>
+        
+        <div id="tab-settings" class="tab-content hidden">
+            <div class="card">
+                <h2>⚙️ 设置</h2>
+                
+                <div class="settings-section">
+                    <h3>⌨️ 快捷键设置</h3>
+                    <div class="shortcut-list" id="shortcutList"></div>
+                    <p class="hint">点击快捷键然后按下新组合进行修改</p>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>💾 数据管理</h3>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                        <button class="btn" onclick="exportData('json')">导出JSON</button>
+                        <button class="btn" onclick="exportData('csv')">导出CSV</button>
+                        <button class="btn" onclick="document.getElementById('importFile').click()">导入数据</button>
+                        <input type="file" id="importFile" accept=".json,.csv" style="display:none" onchange="importData(event)">
+                    </div>
+                    <div class="input-group" style="margin-top: 15px;">
+                        <label>导出筛选</label>
+                        <select id="exportRange">
+                            <option value="all">全部数据</option>
+                            <option value="week">本周</option>
+                            <option value="month">本月</option>
+                            <option value="quarter">本季度</option>
+                            <option value="year">今年</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>🏷️ 标签管理</h3>
+                    <div class="input-group">
+                        <label>添加新标签</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="newTag" placeholder="输入标签名称">
+                            <button class="btn" onclick="addTag()">添加</button>
+                        </div>
+                    </div>
+                    <div class="tag-list" id="tagList"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab-search" class="tab-content hidden">
+            <div class="card">
+                <h2>🔍 搜索</h2>
+                <div class="input-group">
+                    <input type="text" id="searchInput" placeholder="输入关键词搜索...">
+                </div>
+                <div class="input-group">
+                    <label>筛选条件</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <select id="searchTag">
+                            <option value="">全部标签</option>
+                        </select>
+                        <input type="date" id="searchDateStart">
+                        <span>至</span>
+                        <input type="date" id="searchDateEnd">
+                    </div>
+                </div>
+                <button class="btn" onclick="performSearch()">搜索</button>
+                
+                <div style="margin-top: 20px;">
+                    <h3>搜索结果 (<span id="searchResultCount">0</span>条)</h3>
+                    <ul class="records-list" id="searchResults"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="notification" id="notification"></div>
+    
+    <div id="confirmDialog" class="dialog-overlay hidden">
+        <div class="dialog">
+            <div class="dialog-title">确认删除</div>
+            <div class="dialog-content" id="confirmMessage">确定要删除吗？</div>
+            <div class="dialog-actions">
+                <button class="btn secondary" id="confirmCancel">取消</button>
+                <button class="btn danger" id="confirmOk">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentMonth = new Date();
+        let selectedDate = null;
+        let allRecords = [];
+        
+        // ========== 快捷键系统 ==========
+        const defaultShortcuts = {
+            'save': { keys: ['Ctrl', 'Enter'], label: '保存记录', action: 'saveRecord' },
+            'search': { keys: ['Ctrl', 'K'], label: '打开搜索', action: 'openSearch' },
+            'today': { keys: ['Ctrl', '1'], label: '今日记录', action: 'tabToday' },
+            'calendar': { keys: ['Ctrl', '2'], label: '日历视图', action: 'tabCalendar' },
+            'summary': { keys: ['Ctrl', '3'], label: '周期总结', action: 'tabSummary' },
+            'settings': { keys: ['Ctrl', ','], label: '设置', action: 'tabSettings' },
+            'help': { keys: ['Ctrl', '/'], label: '快捷键帮助', action: 'showHelp' }
+        };
+        
+        let shortcuts = JSON.parse(localStorage.getItem('workdiary_shortcuts')) || {...defaultShortcuts};
+        let editingShortcut = null;
+        
+        function getShortcutString(keys) {
+            return keys.join(' + ');
+        }
+        
+        function saveShortcuts() {
+            localStorage.setItem('workdiary_shortcuts', JSON.stringify(shortcuts));
+        }
+        
+        function renderShortcuts() {
+            const list = document.getElementById('shortcutList');
+            list.innerHTML = Object.entries(shortcuts).map(([key, s]) => `
+                <div class="shortcut-item" data-key="${key}">
+                    <span>${s.label}</span>
+                    <span class="key">
+                        ${s.keys.map(k => `<kbd>${k}</kbd>`).join(' + ')}
+                    </span>
+                </div>
+            `).join('');
+            
+            list.querySelectorAll('.shortcut-item').forEach(item => {
+                item.addEventListener('click', () => startEditShortcut(item.dataset.key));
+            });
+        }
+        
+        function startEditShortcut(key) {
+            const item = document.querySelector(`.shortcut-item[data-key="${key}"]`);
+            item.classList.add('editing');
+            item.querySelector('.key').innerHTML = '按下快捷键...';
+            editingShortcut = key;
+        }
+        
+        function handleKeyDown(e) {
+            if (editingShortcut) {
+                e.preventDefault();
+                const keys = [];
+                if (e.ctrlKey) keys.push('Ctrl');
+                if (e.shiftKey) keys.push('Shift');
+                if (e.altKey) keys.push('Alt');
+                if (e.key !== 'Control' && e.key !== 'Shift' && e.key !== 'Alt') {
+                    keys.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+                }
+                
+                if (keys.length > 0 && !['Control', 'Shift', 'Alt'].includes(e.key)) {
+                    shortcuts[editingShortcut].keys = keys;
+                    saveShortcuts();
+                    renderShortcuts();
+                    editingShortcut = null;
+                    showNotification('快捷键已更新');
+                }
+                return;
+            }
+            
+            const pressedKeys = [];
+            if (e.ctrlKey) pressedKeys.push('Ctrl');
+            if (e.shiftKey) pressedKeys.push('Shift');
+            if (e.altKey) pressedKeys.push('Alt');
+            if (e.key !== 'Control' && e.key !== 'Shift' && e.key !== 'Alt') {
+                pressedKeys.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+            }
+            
+            for (const [key, shortcut] of Object.entries(shortcuts)) {
+                if (JSON.stringify(shortcut.keys) === JSON.stringify(pressedKeys)) {
+                    e.preventDefault();
+                    executeShortcut(shortcut.action);
+                    return;
+                }
+            }
+        }
+        
+        function executeShortcut(action) {
+            switch(action) {
+                case 'saveRecord':
+                    addRecord();
+                    break;
+                case 'openSearch':
+                    switchTab('search');
+                    break;
+                case 'tabToday':
+                    switchTab('today');
+                    break;
+                case 'tabCalendar':
+                    switchTab('calendar');
+                    break;
+                case 'tabSummary':
+                    switchTab('summary');
+                    break;
+                case 'tabSettings':
+                    switchTab('settings');
+                    break;
+                case 'showHelp':
+                    showShortcutHelp();
+                    break;
+            }
+        }
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+            
+            if (tabName === 'today') loadTodayRecords();
+            if (tabName === 'calendar') renderCalendar();
+            if (tabName === 'settings') { loadTags(); renderShortcuts(); }
+            if (tabName === 'search') { loadSearchFilters(); }
+        }
+        
+        function showShortcutHelp() {
+            const help = Object.entries(shortcuts).map(([key, s]) => `${s.label}: ${getShortcutString(s.keys)}`).join('\n');
+            alert('⌨️ 快捷键帮助\n\n' + help);
+        }
+        
+        // ========== 搜索功能 ==========
+        async function loadSearchFilters() {
+            const res = await fetch('/api/tags');
+            const tags = await res.json();
+            const select = document.getElementById('searchTag');
+            select.innerHTML = '<option value="">全部标签</option>';
+            tags.forEach(t => select.innerHTML += `<option value="${t}">${t}</option>`);
+        }
+        
+        async function performSearch() {
+            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            const tag = document.getElementById('searchTag').value;
+            const dateStart = document.getElementById('searchDateStart').value;
+            const dateEnd = document.getElementById('searchDateEnd').value;
+            
+            const res = await fetch('/api/records');
+            const records = await res.json();
+            
+            let filtered = records.filter(r => {
+                if (keyword && !r.content.toLowerCase().includes(keyword)) return false;
+                if (tag && r.tag !== tag) return false;
+                if (dateStart && r.date < dateStart) return false;
+                if (dateEnd && r.date > dateEnd) return false;
+                return true;
+            });
+            
+            filtered.sort((a, b) => b.date.localeCompare(a.date));
+            
+            document.getElementById('searchResultCount').textContent = filtered.length;
+            
+            const list = document.getElementById('searchResults');
+            if (filtered.length === 0) {
+                list.innerHTML = '<li class="record-item" style="color: #999; text-align: center;">暂无结果</li>';
+                return;
+            }
+            
+            list.innerHTML = filtered.map(r => {
+                let content = r.content;
+                if (keyword) {
+                    content = content.replace(new RegExp(`(${keyword})`, 'gi'), '<span class="search-result-highlight">$1</span>');
+                }
+                return `
+                    <li class="record-item">
+                        <div class="meta">
+                            <span class="tag">${r.tag || '未分类'}</span>
+                            <span class="time">${r.date}</span>
+                        </div>
+                        <div class="content">${content}</div>
+                    </li>
+                `;
+            }).join('');
+        }
+        
+        // ========== 数据导出/导入 ==========
+        async function exportData(format) {
+            const range = document.getElementById('exportRange').value;
+            let startDate = null;
+            
+            const today = new Date();
+            if (range === 'week') {
+                startDate = new Date(today - today.getDay() * 86400000);
+            } else if (range === 'month') {
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            } else if (range === 'quarter') {
+                const quarter = Math.floor(today.getMonth() / 3);
+                startDate = new Date(today.getFullYear(), quarter * 3, 1);
+            } else if (range === 'year') {
+                startDate = new Date(today.getFullYear(), 0, 1);
+            }
+            
+            const res = await fetch('/api/records');
+            let records = await res.json();
+            
+            if (startDate) {
+                const startStr = startDate.toISOString().split('T')[0];
+                records = records.filter(r => r.date >= startStr);
+            }
+            
+            const tagsRes = await fetch('/api/tags');
+            const tags = await tagsRes.json();
+            
+            let content, filename, mimeType;
+            const timestamp = new Date().toISOString().split('T')[0];
+            
+            if (format === 'json') {
+                content = JSON.stringify({ records, tags, exportDate: timestamp }, null, 2);
+                filename = `workdiary_export_${timestamp}.json`;
+                mimeType = 'application/json';
+            } else if (format === 'csv') {
+                const header = '日期,时间,标签,内容\n';
+                const rows = records.map(r => {
+                    const time = r.created_at ? new Date(r.created_at).toLocaleTimeString() : '';
+                    const contentEscaped = (r.content || '').replace(/"/g, '""');
+                    return `"${r.date}","${time}","${r.tag || ''}","${contentEscaped}"`;
+                }).join('\n');
+                content = '\ufeff' + header + rows;
+                filename = `workdiary_export_${timestamp}.csv`;
+                mimeType = 'text/csv;charset=utf-8';
+            }
+            
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification(`已导出 ${records.length} 条记录`);
+        }
+        
+        async function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    let data;
+                    if (file.name.endsWith('.json')) {
+                        data = JSON.parse(e.target.result);
+                        if (!data.records || !Array.isArray(data.records)) {
+                            throw new Error('无效的JSON格式');
+                        }
+                    } else if (file.name.endsWith('.csv')) {
+                        const text = e.target.result;
+                        const lines = text.split('\n').filter(l => l.trim());
+                        const records = [];
+                        
+                        for (let i = 1; i < lines.length; i++) {
+                            const match = lines[i].match(/^"([^"]*)","([^"]*)","([^"]*)","([^"]*)"$/);
+                            if (match) {
+                                records.push({
+                                    date: match[1],
+                                    tag: match[3],
+                                    content: match[4]
+                                });
+                            }
+                        }
+                        data = { records };
+                    }
+                    
+                    const confirmed = await showConfirmDialog(`确定导入 ${data.records.length} 条记录吗？`);
+                    if (!confirmed) return;
+                    
+                    const res = await fetch('/api/records');
+                    const existingRecords = await res.json();
+                    const existingIds = new Set(existingRecords.map(r => r.id));
+                    
+                    let addedCount = 0;
+                    for (const record of data.records) {
+                        if (!existingIds.has(record.id)) {
+                            record.id = record.id || Date.now().toString() + Math.random().toString(36).substr(2, 9);
+                            existingRecords.push(record);
+                            addedCount++;
+                        }
+                    }
+                    
+                    await fetch('/api/records/batch', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(existingRecords)
+                    });
+                    
+                    showNotification(`成功导入 ${addedCount} 条记录`);
+                    allRecords = existingRecords;
+                    loadTodayRecords();
+                } catch (err) {
+                    showNotification('导入失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+        
+        document.addEventListener('keydown', handleKeyDown);
+        document.getElementById('currentDate').textContent = new Date().toLocaleDateString('zh-CN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                switchTab(tab.dataset.tab);
+            });
+        });
+        
+        function showNotification(msg) {
+            const el = document.getElementById('notification');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 2000);
+        }
+        
+        async function loadTags() {
+            const res = await fetch('/api/tags');
+            const tags = await res.json();
+            const select = document.getElementById('recordTag');
+            select.innerHTML = '<option value="">选择标签...</option>';
+            tags.forEach(t => select.innerHTML += `<option value="${t}">${t}</option>`);
+            
+            const list = document.getElementById('tagList');
+            list.innerHTML = tags.map(t => `<span class="tag-item">${t}</span>`).join('');
+        }
+        
+        async function addRecord() {
+            const content = document.getElementById('recordContent').value.trim();
+            const tag = document.getElementById('recordTag').value;
+            if (!content) return showNotification('请输入工作内容');
+            
+            await fetch('/api/records', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({content, tag})
+            });
+            
+            document.getElementById('recordContent').value = '';
+            document.getElementById('recordTag').value = '';
+            showNotification('记录保存成功');
+            loadTodayRecords();
+        }
+        
+        async function loadTodayRecords() {
+            const today = new Date().toISOString().split('T')[0];
+            const res = await fetch(`/api/records?date=${today}`);
+            const records = await res.json();
+            renderRecords(records, 'todayRecords', 'todayCount');
+        }
+        
+        function renderRecords(records, containerId, countId) {
+            document.getElementById(countId).textContent = records.length;
+            const list = document.getElementById(containerId);
+            if (records.length === 0) {
+                list.innerHTML = '<li class="record-item" style="color: #999; text-align: center;">暂无记录</li>';
+                return;
+            }
+            list.innerHTML = records.map(r => `
+                <li class="record-item">
+                    <div class="meta">
+                        <span class="tag">${r.tag || '未分类'}</span>
+                        <span class="time">${r.created_at ? new Date(r.created_at).toLocaleTimeString() : ''}</span>
+                    </div>
+                    <div class="content">${r.content}</div>
+                    <div class="actions">
+                        <button class="btn sm danger" onclick="deleteRecord('${r.id}', event)">删除</button>
+                    </div>
+                </li>
+            `).join('');
+        }
+        
+        async function deleteRecord(id, event) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '删除中...';
+            
+            const confirmed = await showConfirmDialog('确定删除这条记录吗？此操作不可撤销。');
+            
+            if (!confirmed) {
+                btn.disabled = false;
+                btn.textContent = '删除';
+                return;
+            }
+            
+            const doubleConfirmed = await showConfirmDialog('再次确认：确定要删除吗？');
+            
+            if (!doubleConfirmed) {
+                btn.disabled = false;
+                btn.textContent = '删除';
+                return;
+            }
+            
+            try {
+                await fetch(`/api/records/${id}`, {method: 'DELETE'});
+                showNotification('删除成功');
+                loadTodayRecords();
+                
+                if (selectedDate) {
+                    loadDateRecords(selectedDate);
+                }
+            } catch (e) {
+                showNotification('删除失败');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '删除';
+            }
+        }
+        
+        function showConfirmDialog(message) {
+            return new Promise((resolve) => {
+                const dialog = document.getElementById('confirmDialog');
+                const msgEl = document.getElementById('confirmMessage');
+                const cancelBtn = document.getElementById('confirmCancel');
+                const okBtn = document.getElementById('confirmOk');
+                
+                msgEl.textContent = message;
+                dialog.classList.remove('hidden');
+                
+                const cleanup = () => {
+                    cancelBtn.onclick = null;
+                    okBtn.onclick = null;
+                    dialog.classList.add('hidden');
+                };
+                
+                cancelBtn.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                
+                okBtn.onclick = () => {
+                    cleanup();
+                    resolve(true);
+                };
+            });
+        }
+        
+        function renderCalendar() {
+            const year = currentMonth.getFullYear();
+            const month = currentMonth.getMonth();
+            document.getElementById('calendarMonth').textContent = `${year}年${month + 1}月`;
+            
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const today = new Date().toISOString().split('T')[0];
+            
+            let html = ['日', '一', '二', '三', '四', '五', '六'].map(d => `<div style="text-align: center; font-weight: bold; color: #666;">${d}</div>`).join('');
+            
+            for (let i = 0; i < firstDay; i++) html += '<div></div>';
+            
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const isToday = dateStr === today;
+                const isSelected = dateStr === selectedDate;
+                const hasRecord = allRecords.some(r => r.date === dateStr);
+                let cls = 'calendar-day';
+                if (isToday) cls += ' today';
+                if (isSelected) cls += ' selected';
+                if (hasRecord) cls += ' has-record';
+                html += `<div class="${cls}" onclick="selectDate('${dateStr}')">${d}</div>`;
+            }
+            document.getElementById('calendar').innerHTML = html;
+            
+            if (!selectedDate) selectedDate = today;
+            loadDateRecords(selectedDate);
+        }
+        
+        function changeMonth(delta) {
+            currentMonth.setMonth(currentMonth.getMonth() + delta);
+            renderCalendar();
+        }
+        
+        async function selectDate(dateStr) {
+            selectedDate = dateStr;
+            document.getElementById('selectedDate').textContent = dateStr;
+            renderCalendar();
+            loadDateRecords(dateStr);
+        }
+        
+        async function loadDateRecords(dateStr) {
+            const res = await fetch(`/api/records?date=${dateStr}`);
+            const records = await res.json();
+            renderRecords(records, 'dateRecords', 'selectedDate');
+        }
+        
+        async function showSummary(type) {
+            const res = await fetch(`/api/summary/${type}`);
+            const data = await res.json();
+            document.getElementById('summaryContent').textContent = data.summary;
+        }
+        
+        async function showAISummary(type, isLast = false) {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '🤖 AI生成中...';
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch('/api/ai/summary', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({type: type, is_last: isLast})
+                });
+                const data = await res.json();
+                
+                if (data.success && data.ai_summary) {
+                    document.getElementById('summaryContent').innerHTML = 
+                        '<pre style="white-space: pre-wrap; font-family: inherit; line-height: 1.8;">' + data.ai_summary + '</pre>' +
+                        '<hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">' +
+                        '<details><summary style="cursor: pointer; color: #666;">查看原始记录</summary><pre style="margin-top: 10px; color: #888;">' + data.basic_summary + '</pre></details>';
+                } else {
+                    document.getElementById('summaryContent').textContent = data.basic_summary + '\n\n⚠️ ' + (data.error || 'AI服务暂不可用');
+                }
+            } catch (e) {
+                showNotification('AI总结生成失败');
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function addTag() {
+            const tag = document.getElementById('newTag').value.trim();
+            if (!tag) return;
+            await fetch('/api/tags', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({tag})
+            });
+            document.getElementById('newTag').value = '';
+            showNotification('标签添加成功');
+            loadTags();
+        }
+        
+        async function init() {
+            const res = await fetch('/api/records');
+            allRecords = await res.json();
+            loadTags();
+            loadTodayRecords();
+        }
+        
+        init();
+    </script>
+</body>
+</html>
